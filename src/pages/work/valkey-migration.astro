@@ -1,0 +1,156 @@
+---
+import { Code } from 'astro:components';
+import Case from '../../layouts/Case.astro';
+import { site } from '../../data/site';
+
+const lookup = `@Override
+protected Object lookup(Object key) {
+    try {
+        String json = glideClient.get(buildRedisKey(key)).get();
+        return json == null ? null : objectMapper.readValue(json, Object.class);
+    } catch (Exception e) {
+        log.warn("Cache lookup failed for '{}' key='{}': {}", name, key, e.getMessage());
+        return null; // exception = cache miss. Never propagate.
+    }
+}`;
+
+const lifecycle = `// 1. Spring must not close the client on its own
+@Bean(destroyMethod = "")
+public GlideClusterClient glideClient() throws Exception {
+    // 2. No GLIDE shutdown hook racing Spring's graceful shutdown
+    System.setProperty("glide.autoShutdownHook", "false");
+    // ... client configuration ...
+}
+
+@Bean
+public SmartLifecycle glideClientLifecycle(GlideClusterClient glideClient) {
+    return new SmartLifecycle() {
+        // ...
+        // 3. We own the timing: close last, after the SQS listeners drain
+        @Override public void stop() { glideClient.close(); }
+        @Override public int getPhase() { return Integer.MIN_VALUE; }
+    };
+}`;
+
+const results = [
+  { metric: 'Cache infrastructure cost', before: 'Provisioned, 24×7', after: '~75% lower' },
+  { metric: 'ECPU consumed per day', before: '177M', after: '100M (−44%)' },
+  { metric: 'New connections opened', before: '1,000+', after: '~0' },
+  { metric: 'Cache hit rate (cache-aside)', before: '—', after: '96–99%' },
+];
+---
+
+<Case
+  title="Redis + Lettuce to Valkey Serverless + GLIDE"
+  description="Leading a production cache migration from provisioned ElastiCache Redis with Lettuce to ElastiCache Serverless (Valkey) with GLIDE: ~75% lower cost, 44% fewer ECPUs, and a shutdown-ordering bug that only appeared during deploys."
+  eyebrow="Case study · Production · Khumbu Systems"
+  lede="Our restaurant-integration platform ran its cache on provisioned ElastiCache Redis, sized for peak and paid for around the clock, while traffic peaks at breakfast, lunch and dinner and falls away in between. I led the move to ElastiCache Serverless on Valkey with AWS’s GLIDE client. What looked like a client swap turned into lessons about serverless economics, client behaviour and Spring’s lifecycle."
+  meta={[
+    { label: 'Role', value: 'Led the migration' },
+    { label: 'Stack', value: 'Spring Boot 3, ElastiCache Serverless (Valkey), GLIDE' },
+    { label: 'Also', value: 'SQS, DynamoDB Streams, S3' },
+    { label: 'Write-up', value: 'Medium, June 2026', href: site.links.article },
+  ]}
+>
+  <h2>Outcome</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th scope="col">Metric</th><th scope="col">Before</th><th scope="col">After</th></tr>
+      </thead>
+      <tbody>
+        {
+          results.map((r) => (
+            <tr>
+              <td>{r.metric}</td>
+              <td class="num">{r.before}</td>
+              <td class="num strong">{r.after}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Why move at all</h2>
+  <p>
+    Licensing started the conversation: in 2024 Redis moved from BSD to RSALv2 and SSPL, and Valkey continued under
+    BSD-3 with full protocol compatibility. Cost made the decision. With provisioned nodes the bill is identical at
+    500 requests per second at noon and 2 at 3 AM; Serverless charges for what is consumed, and scales without
+    capacity reviews or node resizing. For a workload with sharp daily peaks and valleys, that was worth about 75% of
+    the cache bill.
+  </p>
+  <p>
+    GLIDE replaced Lettuce not because Lettuce was failing, but for alignment: AWS builds it for Valkey and
+    ElastiCache, its core is Rust on Tokio, and it removes Netty from the stack.
+  </p>
+
+  <h2>Spring does not know GLIDE</h2>
+  <p>
+    Spring Data Redis is built around <code>RedisConnectionFactory</code>, and GLIDE does not implement it, so there
+    is no drop-in replacement for <code>@Cacheable</code>. I built a cache on
+    <code>AbstractValueAdaptingCache</code> with its own cache manager. The design rule that mattered most: a cache
+    failure is a cache miss. If the cache is unavailable, the request reads from its source of truth and carries
+    on.
+  </p>
+  <Code code={lookup} lang="java" themes={{ light: 'github-light', dark: 'github-dark' }} defaultColor={false} />
+  <p>
+    The next surprise: reads came back as <code>LinkedHashMap</code>, not domain objects, because deserialising into
+    <code>Object.class</code> without type information falls back to maps. The fix was a dedicated
+    <code>ObjectMapper</code> with default typing, isolated from the application’s main mapper. Enabled globally, it
+    would have written <code>@class</code> fields into every REST response.
+  </p>
+
+  <h2>The bug that only appeared during deploys</h2>
+  <p>
+    Everything worked until shutdown. During a deploy, Spring drains in-flight SQS messages, and those handlers still
+    use the cache. But GLIDE registers its own JVM shutdown hook, which marks the client as closing the moment the JVM
+    begins to stop. Every cache call made during the drain failed with <code>ClosingException</code>. It looked like
+    a connection failure. It was lifecycle ordering.
+  </p>
+  <p>The fix needs three coordinated changes. Remove any one and it breaks:</p>
+  <Code code={lifecycle} lang="java" themes={{ light: 'github-light', dark: 'github-dark' }} defaultColor={false} />
+  <p>
+    <code>SmartLifecycle</code> stops higher phases first, so a phase of <code>Integer.MIN_VALUE</code> closes the
+    client after the SQS listeners have drained. After the change, the deploy-time exceptions disappeared.
+  </p>
+
+  <h2>Tuning for how Serverless bills</h2>
+  <ul>
+    <li>
+      <strong>ECPU down 44%, 177M → 100M a day,</strong> by gzipping large menu payloads before they reach the cache.
+      Serverless bills processing by data transferred, so payload size is cost.
+    </li>
+    <li>
+      <strong>New connections 1,000+ → ~0.</strong> GLIDE’s multiplexed client replaced our custom connection pooling.
+      I traced the remaining intermittent <code>ClosingException</code> errors to the Serverless proxy
+      recycling connections.
+    </li>
+    <li>
+      <strong>Write-through → cache-aside</strong>, with invalidation driven by DynamoDB Streams and the same
+      “exception = miss” contract: 96–99% hit rate.
+    </li>
+    <li>
+      <strong>A limit worth knowing before production:</strong> ElastiCache Serverless allows at most 3,999 arguments
+      per command, and exceeding it returns a bare TCP reset, not an error. Every call was audited before go-live.
+    </li>
+  </ul>
+
+  <div class="callout">
+    <p>
+      The full write-up, with the complete configuration:
+      <a href={site.links.article}>From Redis + Lettuce to Valkey GLIDE, on Medium →</a>
+    </p>
+  </div>
+</Case>
+
+<style>
+  .strong {
+    color: var(--accent-text);
+    font-weight: 600;
+  }
+
+  .table-wrap td:first-child {
+    font-weight: 550;
+  }
+</style>

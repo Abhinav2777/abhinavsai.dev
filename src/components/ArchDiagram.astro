@@ -1,0 +1,149 @@
+---
+// The chess platform's runtime architecture, drawn as inline SVG so it follows the page theme.
+---
+
+<figure class="arch">
+  <div class="scroll frame">
+    <svg viewBox="0 0 940 334" role="img" aria-labelledby="arch-title arch-desc">
+      <title id="arch-title">Chess platform architecture</title>
+      <desc id="arch-desc">
+        Browsers connect over REST and WebSocket through a load balancer to N API instances. Each move is one
+        PostgreSQL transaction. API instances share fanout, presence and the seek queue through Valkey. A worker
+        relays the transactional outbox to SQS, consumes rating events, and publishes rating updates through Valkey.
+      </desc>
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" class="head"></path>
+        </marker>
+      </defs>
+
+      <!-- edges -->
+      <g class="edge">
+        <line x1="132" y1="167" x2="198" y2="167" marker-start="url(#arrow)" marker-end="url(#arrow)"></line>
+        <line x1="322" y1="167" x2="368" y2="167" marker-start="url(#arrow)" marker-end="url(#arrow)"></line>
+        <path d="M542 138 C 580 138, 580 52, 618 52" marker-end="url(#arrow)"></path>
+        <path d="M542 196 C 580 196, 580 282, 618 282" marker-start="url(#arrow)" marker-end="url(#arrow)"></path>
+        <line x1="715" y1="133" x2="715" y2="88" marker-end="url(#arrow)"></line>
+        <line x1="715" y1="201" x2="715" y2="246" marker-end="url(#arrow)"></line>
+        <line x1="812" y1="167" x2="848" y2="167" marker-start="url(#arrow)" marker-end="url(#arrow)"></line>
+      </g>
+
+      <g class="edge-label">
+        <text x="165" y="157" text-anchor="middle">REST · WS</text>
+        <text x="566" y="98" text-anchor="end">1 txn / move</text>
+        <text x="566" y="244" text-anchor="end">pub/sub</text>
+        <text x="723" y="114">outbox</text>
+        <text x="723" y="228">RATING_UPDATED</text>
+      </g>
+
+      <!-- nodes -->
+      <g class="node">
+        <rect x="10" y="135" width="120" height="64" rx="9"></rect>
+        <text x="70" y="163" class="t">Browser</text>
+        <text x="70" y="183" class="s">React SPA</text>
+      </g>
+      <g class="node">
+        <rect x="200" y="135" width="120" height="64" rx="9"></rect>
+        <text x="260" y="163" class="t">ALB / ingress</text>
+        <text x="260" y="183" class="s">load balancer</text>
+      </g>
+      <g class="node node--accent">
+        <rect x="370" y="105" width="170" height="124" rx="10"></rect>
+        <text x="455" y="146" class="t">API × N</text>
+        <text x="455" y="170" class="s">game · realtime</text>
+        <text x="455" y="188" class="s">matchmaking · identity</text>
+        <text x="455" y="212" class="s faint">stateless</text>
+      </g>
+      <g class="node node--store">
+        <rect x="620" y="20" width="190" height="64" rx="9"></rect>
+        <text x="715" y="48" class="t">PostgreSQL</text>
+        <text x="715" y="68" class="s">the only source of truth</text>
+      </g>
+      <g class="node">
+        <rect x="620" y="135" width="190" height="64" rx="9"></rect>
+        <text x="715" y="163" class="t">Worker</text>
+        <text x="715" y="183" class="s">outbox relay · ratings</text>
+      </g>
+      <g class="node node--store">
+        <rect x="620" y="250" width="190" height="64" rx="9"></rect>
+        <text x="715" y="278" class="t">Valkey</text>
+        <text x="715" y="298" class="s">fanout · presence · seeks</text>
+      </g>
+      <g class="node">
+        <rect x="850" y="135" width="80" height="64" rx="9"></rect>
+        <text x="890" y="163" class="t">SQS</text>
+        <text x="890" y="183" class="s">+ DLQ</text>
+      </g>
+    </svg>
+  </div>
+  <figcaption><slot /></figcaption>
+</figure>
+
+<style>
+  .scroll {
+    overflow-x: auto;
+    padding: 1.25rem;
+    background: var(--bg-raised);
+    box-shadow: none;
+  }
+
+  svg {
+    min-width: 640px;
+    width: 100%;
+    font-family: var(--font-sans);
+  }
+
+  .node rect {
+    fill: var(--bg-sunken);
+    stroke: var(--rule-strong);
+    stroke-width: 1.2;
+  }
+
+  .node--accent rect {
+    fill: var(--accent-soft);
+    stroke: var(--accent);
+    stroke-width: 1.5;
+  }
+
+  .node--store rect {
+    stroke-dasharray: none;
+    fill: var(--bg);
+  }
+
+  .node text {
+    text-anchor: middle;
+  }
+
+  .t {
+    font-size: 15px;
+    font-weight: 620;
+    fill: var(--text);
+  }
+
+  .s {
+    font-size: 12px;
+    fill: var(--text-muted);
+  }
+
+  .faint {
+    fill: var(--text-faint);
+    font-size: 11px;
+  }
+
+  .edge line,
+  .edge path {
+    stroke: var(--text-faint);
+    stroke-width: 1.4;
+    fill: none;
+  }
+
+  .head {
+    fill: var(--text-faint);
+  }
+
+  .edge-label text {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    fill: var(--text-muted);
+  }
+</style>

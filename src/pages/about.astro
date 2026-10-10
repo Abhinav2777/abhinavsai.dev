@@ -1,0 +1,278 @@
+---
+import Base from '../layouts/Base.astro';
+import SectionHeading from '../components/SectionHeading.astro';
+import { site } from '../data/site';
+
+const principles = [
+  {
+    title: 'Measure before claiming',
+    body: 'A number without its environment and method is a guess. I write down where a figure came from, and label estimates as estimates.',
+  },
+  {
+    title: 'Failure is a feature to test',
+    body: 'Timeouts, retries, redeliveries and restarts are where systems actually break, so I break them on purpose and read what happens.',
+  },
+  {
+    title: 'The simplest design that is correct',
+    body: 'A modular monolith before microservices; a database constraint before a distributed lock. Infrastructure is added when there is a reason.',
+  },
+  {
+    title: 'Write down the why',
+    body: 'Decisions are worth more with their alternatives and trade-offs attached. That is what lets a design be defended, and changed later.',
+  },
+];
+
+const stack = [
+  { area: 'Languages & backend', items: ['Java', 'Spring Boot', 'Python', 'SQL', 'JavaScript', 'REST', 'WebSockets', 'Concurrency'] },
+  { area: 'Data & messaging', items: ['PostgreSQL', 'DynamoDB', 'ClickHouse', 'MongoDB', 'Redis / Valkey', 'SQS', 'Distributed caching'] },
+  { area: 'Cloud & delivery', items: ['AWS: ECS, EC2, S3, ElastiCache, RDS, Lambda, CloudWatch', 'Terraform', 'Docker', 'Kubernetes', 'CI/CD'] },
+  { area: 'Testing & operations', items: ['JUnit', 'Testcontainers', 'k6', 'JMeter', 'OpenTelemetry', 'Failure drills'] },
+];
+
+const timeline = [
+  { when: '2026', what: 'Built a real-time multiplayer chess platform end to end: AWS, Kubernetes, load tests, failure drills.' },
+  { when: '2026', what: 'Published “From Redis + Lettuce to Valkey GLIDE” on Medium.' },
+  { when: '2024', what: 'Joined Khumbu Systems as a backend engineer on restaurant-integration services.' },
+  { when: '2024', what: 'Graduated from CBIT: B.E. Computer Science and Engineering (IoT, Cyber Security & Blockchain), CGPA 9.27 / 10.' },
+  { when: '2023', what: '1st place, Tech Savishkaar Hackathon, Vasavi College of Engineering.' },
+  { when: '2020', what: 'Started at Chaitanya Bharathi Institute of Technology, Hyderabad.' },
+];
+---
+
+<Base title="About" description="About Abhinav Sai: a backend engineer in Hyderabad working on distributed systems, Java, Spring Boot and AWS.">
+  <section class="container head">
+    <p class="eyebrow">About</p>
+    <h1>Backend engineer, mostly interested in what happens when things fail.</h1>
+  </section>
+
+  <section class="container prose intro">
+    <p>
+      I’m Abhinav, a backend engineer in Hyderabad. At Khumbu Systems I design and own the integration services between
+      ordering platforms, Uber Eats and RBI’s apps, and the point-of-sale systems of Burger King, Popeyes, Tim
+      Hortons, Chipotle and Wingstop: about 12,000 stores across 17 markets. Orders, quotes, cancellations, pricing,
+      and the menu and store-status syncs that keep them all agreeing.
+    </p>
+    <p>
+      Integration work teaches you that every partner retries, every queue redelivers, and every dependency eventually
+      times out. Most of what I enjoy is in that layer: idempotent consumers, caches that degrade to misses rather than
+      errors, shutdown ordering, failover. I led our cache migration to ElastiCache Serverless, and
+      <a href={site.links.article}>wrote up what it taught us</a>.
+    </p>
+    <p>
+      To go further than my day job needed, I built a <a href="/work/chess-platform">real-time multiplayer chess
+      platform</a> as a production system: a clock that cannot drift, moves that apply exactly once under contention,
+      games that survive a rolling deploy, and a written report behind every number I quote about it.
+    </p>
+  </section>
+
+  <section class="container block">
+    <SectionHeading index="01" title="How I work" />
+    <div class="principles">
+      {
+        principles.map((p) => (
+          <div class="principle">
+            <h3>{p.title}</h3>
+            <p class="muted">{p.body}</p>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
+  <section class="container block">
+    <SectionHeading index="02" title="What I work with" />
+    <dl class="stack">
+      {
+        stack.map((s) => (
+          <div class="stack-row">
+            <dt>{s.area}</dt>
+            <dd>
+              <ul class="chips">
+                {s.items.map((i) => (
+                  <li class="chip">{i}</li>
+                ))}
+              </ul>
+            </dd>
+          </div>
+        ))
+      }
+    </dl>
+  </section>
+
+  <section class="container block">
+    <SectionHeading index="03" title="Timeline" />
+    <ol class="timeline">
+      {
+        timeline.map((t) => (
+          <li>
+            <span class="mono when">{t.when}</span>
+            <span>{t.what}</span>
+          </li>
+        ))
+      }
+    </ol>
+  </section>
+
+  <section class="container block">
+    <SectionHeading index="04" title="Recognition" />
+    <ul class="prose plain">
+      <li><strong>1st place</strong>, Tech Savishkaar Hackathon, Vasavi College of Engineering (2023)</li>
+      <li><strong>Top 40 of 400+ teams</strong>, Google &amp; T-Hub Hack4Change Hackathon; selected among the national finalists</li>
+      <li>At work: integration services for Uber Eats, RBI, Chipotle, Tim Hortons and IBS delivered fast enough to take onboarding from weeks to days</li>
+    </ul>
+  </section>
+
+  <section class="container block">
+    <div class="cta">
+      <p>Hiring for backend or distributed systems?</p>
+      <div class="actions">
+        <a class="btn btn--primary" href={`mailto:${site.email}`}>Email me</a>
+        <a class="btn" href={site.cv}>Download CV</a>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .head {
+    padding-top: clamp(3rem, 10vw, 6rem);
+  }
+
+  .head h1 {
+    font-size: clamp(2rem, 5.5vw, 3rem);
+    letter-spacing: -0.035em;
+    line-height: 1.1;
+    margin-top: 0.8rem;
+  }
+
+  .intro {
+    margin-top: 2rem;
+    font-size: 1.1rem;
+  }
+
+  .block {
+    margin-top: 4.5rem;
+  }
+
+  .principles {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+
+  .principle {
+    background: var(--bg-raised);
+    padding: 1.4rem;
+  }
+
+  .principle h3 {
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .principle p {
+    margin: 0;
+    font-size: 0.95rem;
+  }
+
+  @media (max-width: 620px) {
+    .principles {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .stack {
+    margin: 0;
+  }
+
+  .stack-row {
+    display: grid;
+    grid-template-columns: 11rem 1fr;
+    gap: 1rem;
+    padding: 1rem 0;
+    border-top: 1px solid var(--rule);
+  }
+
+  .stack-row:last-child {
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .stack dt {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+
+  .stack dd {
+    margin: 0;
+  }
+
+  @media (max-width: 620px) {
+    .stack-row {
+      grid-template-columns: 1fr;
+      gap: 0.6rem;
+    }
+  }
+
+  .timeline {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    border-left: 1px solid var(--rule-strong);
+  }
+
+  .timeline li {
+    position: relative;
+    display: grid;
+    grid-template-columns: 3.5rem 1fr;
+    gap: 0.75rem;
+    padding: 0.6rem 0 0.6rem 1.5rem;
+  }
+
+  .timeline li::before {
+    content: '';
+    position: absolute;
+    left: -5px;
+    top: 1.15rem;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 2px solid var(--accent);
+  }
+
+  .when {
+    font-size: 0.85rem;
+    color: var(--accent-text);
+    padding-top: 0.15rem;
+  }
+
+  .plain li {
+    margin: 0.6em 0;
+  }
+
+  .cta {
+    padding: clamp(1.5rem, 4vw, 2.25rem);
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    background: var(--bg-raised);
+    text-align: center;
+  }
+
+  .cta p {
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin-bottom: 1.2rem;
+  }
+
+  .actions {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+</style>

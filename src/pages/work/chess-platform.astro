@@ -1,0 +1,334 @@
+---
+import Case from '../../layouts/Case.astro';
+import DemoVideo from '../../components/DemoVideo.astro';
+import ArchDiagram from '../../components/ArchDiagram.astro';
+import { site, repo } from '../../data/site';
+
+const measured = [
+  {
+    what: 'Concurrency invariant',
+    result: '16 requests for the same move, 100 rounds: exactly one winner every time',
+    where: 'PROJECT_STATE.md',
+    report: 'Project state',
+  },
+  {
+    what: '1,000 WebSocket connections (kind)',
+    result: '500 live games; server p99 6.7 ms, flat from 100 to 1,000 sockets',
+    where: 'docs/perf/baseline.md',
+    report: 'Baseline',
+  },
+  {
+    what: 'Rolling deploy during 40 live games',
+    result: '40/40 games consistent, 0 abnormal closes, reconnect p99 498 ms',
+    where: 'docs/perf/2026-10-01-rolling-deploy-kind.md',
+    report: 'Rolling deploy',
+  },
+  {
+    what: 'Stress that crashed both pods',
+    result: 'Memory sized from measurement: OOM-killed 4× per pod → 0 restarts',
+    where: 'docs/perf/optimisation-01.md',
+    report: 'Optimisation 01',
+  },
+  {
+    what: 'Sign-up burst, AWS Fargate (0.5 vCPU)',
+    result: '30/50 games → 50/50; 265 error log lines → 0',
+    where: 'docs/perf/optimisation-02.md',
+    report: 'Optimisation 02',
+  },
+  {
+    what: 'PostgreSQL frozen 30 s, 20 live games',
+    result: '20/20 games consistent; longest wait 33.5 s → 2.9 s; ERROR lines 127 → 1',
+    where: 'docs/failure-drills.md',
+    report: 'Failure drills',
+  },
+  {
+    what: 'Queue or worker down 60 s',
+    result: 'Games unaffected; ratings delivered within 3 s / 14 s of recovery',
+    where: 'docs/failure-drills.md',
+    report: 'Failure drills',
+  },
+  {
+    what: 'Unauthenticated 100 MB request bodies',
+    result: 'Heap 58 MB → 2.4 GB (enough to end an AWS task) → now 413 at 16 KB',
+    where: 'docs/security-review.md',
+    report: 'Security review',
+  },
+];
+
+const decisions = [
+  {
+    title: 'The clock does not tick.',
+    body: 'Remaining time is computed from three persisted columns and PostgreSQL’s now(). It is identical from any pod, survives reconnecting to a different instance, and cannot drift, because there is no timer to drift.',
+    adr: 'docs/adr/ADR-006-computed-clock.md',
+    label: 'ADR-006',
+  },
+  {
+    title: 'No distributed lock.',
+    body: 'Move safety comes from an idempotency key, an optimistic version column and a composite primary key, all inside one database transaction. A Redis lock would add a TTL-expiry failure mode without removing any of those.',
+    adr: 'docs/adr/ADR-005-optimistic-locking-not-distributed-locks.md',
+    label: 'ADR-005',
+  },
+  {
+    title: 'PostgreSQL is the only source of truth.',
+    body: 'Valkey holds nothing that cannot be rebuilt, so it can be restarted mid-game. Fanout, presence and the seek queue degrade; games do not.',
+    adr: 'docs/adr/ADR-004-postgres-source-of-truth.md',
+    label: 'ADR-004',
+  },
+  {
+    title: 'Exactly-once effects on at-least-once delivery.',
+    body: 'A transactional outbox, SQS Standard, and a consumer that records each event in the same transaction as its effect. Ratings are never applied twice, and a game never waits for them.',
+    adr: 'docs/adr/ADR-008-sqs-not-kafka.md',
+    label: 'ADR-008',
+  },
+  {
+    title: 'A server can leave mid-game.',
+    body: 'On shutdown a pod turns readiness off and closes every socket with a reconnect hint; the client resumes on another pod from a snapshot.',
+    adr: 'docs/adr/ADR-024-kubernetes-and-graceful-drain.md',
+    label: 'ADR-024',
+  },
+];
+---
+
+<Case
+  title="Real-time multiplayer chess platform"
+  description="A production-grade real-time chess backend: server-authoritative clocks, exactly-once moves without distributed locks, graceful drain across rolling deploys, AWS and Kubernetes, load tests and failure drills."
+  eyebrow="Case study · Side project · 2026"
+  lede="The interesting engineering here is not chess. It is keeping a turn-based mutation of shared state correct under concurrency, network failure, pod death and rolling deploys, with a clock that decides outcomes and so cannot be wrong. Then measuring whether it is, rather than claiming it."
+  meta={[
+    { label: 'Role', value: 'Sole engineer: design, build, test, deploy' },
+    { label: 'Backend', value: 'Java 25, Spring Boot 4, PostgreSQL, Valkey, SQS' },
+    { label: 'Infrastructure', value: 'AWS ECS Fargate, Terraform, Kubernetes (kind), Docker' },
+    { label: 'Source', value: 'github.com/Abhinav2777/chess-platform', href: site.links.chessRepo },
+  ]}
+>
+  <div class="bleed">
+    <DemoVideo name="1-play" label="Two browsers seek a game, are paired, play to checkmate, and both receive the rating change" width={1400} height={504}>
+      Two real browsers against the real server: seek, pair through the Valkey queue, scholar’s mate. The rating
+      change (±16) reaches both players asynchronously, via outbox → SQS → rating worker → WebSocket.
+    </DemoVideo>
+  </div>
+
+  <h2>What I built</h2>
+  <p>
+    A modular monolith: one image with three roles (API, worker, migrate) and module boundaries enforced by ArchUnit
+    tests. API instances are stateless: any pod can serve any game, and a player can reconnect to a different pod
+    mid-game. Moves arrive over a raw WebSocket protocol and each one is a single PostgreSQL transaction. Valkey
+    carries the cross-pod work (fanning moves out to the right sockets, presence and the matchmaking queue), and an
+    outbox relay hands finished games to a worker that computes ratings.
+  </p>
+
+  <div class="bleed">
+    <ArchDiagram>
+      One deployable, three roles. PostgreSQL is the source of truth; everything in Valkey can be rebuilt. The same
+      image runs on AWS (ALB, ECS Fargate, RDS, ElastiCache, SQS) and on Kubernetes (ingress-nginx, in-cluster data).
+    </ArchDiagram>
+  </div>
+
+  <h2>Measured</h2>
+  <p>
+    Every figure comes from a report in the repository stating its date, environment and method. After every load
+    test, each game is checked move by move against the server: every move a player saw acknowledged must be
+    stored, at its position, unchanged, and nothing else.
+  </p>
+  <div class="table-wrap bleed-table">
+    <table>
+      <thead>
+        <tr><th scope="col">What</th><th scope="col">Result</th><th scope="col">Report</th></tr>
+      </thead>
+      <tbody>
+        {
+          measured.map((m) => (
+            <tr>
+              <td>{m.what}</td>
+              <td>{m.result}</td>
+              <td>
+                <a href={repo(m.where)}>{m.report}</a>
+              </td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+  <p class="note muted">
+    Measured on AWS up to about 100 concurrent sockets; I stopped the larger run on cost. The 1,000-socket figure is
+    from kind on one laptop, and is labelled that way wherever it appears.
+  </p>
+
+  <h2>Decisions</h2>
+  <p>
+    Each of these is an Architecture Decision Record in the repository, with the alternatives I rejected and what
+    would make me revisit it.
+  </p>
+  <ol class="decisions">
+    {
+      decisions.map((d) => (
+        <li>
+          <h3>{d.title}</h3>
+          <p>
+            {d.body} <a class="mono small" href={repo(d.adr)}>{d.label}</a>
+          </p>
+        </li>
+      ))
+    }
+  </ol>
+
+  <h2>A rolling restart, mid-game</h2>
+  <div class="bleed">
+    <DemoVideo name="2-rolling-restart" label="Both API pods are replaced by a rolling restart during a game; the browsers reconnect and the game continues" width={1400} height={504}>
+      A real <code>kubectl rollout restart</code> replacing both API pods during a game. Each old pod drains (readiness
+      off, every socket closed with 1001 GOING_AWAY); the browsers reconnect to a new pod and resume from a
+      snapshot. In this take they reconnected in 453 ms and 275 ms. Waits are shown at 4×, marked on screen.
+    </DemoVideo>
+  </div>
+  <p>
+    Under load the same scenario ran with 40 live games and 80 sockets: 116 sockets closed with GOING_AWAY, 0 abnormal
+    closes, 0 moves rejected, all 40 games consistent, reconnect p99 498 ms.
+  </p>
+
+  <h2>What measuring found</h2>
+  <p>
+    The most useful part of the project was not building it but trying to break it. Each of these was found by a
+    test, a drill or a recording, then fixed with before-and-after numbers.
+  </p>
+
+  <h3>1. A burst of sign-ups stopped the whole server</h3>
+  <p>
+    On Fargate at 0.5 vCPU, a 50-game burst failed 20 games with connection-pool timeouts, though no password hash
+    held a connection any more. The clue was in the timeout itself: a thread allowed to wait 3,000 ms for a
+    connection woke after 4,795 ms. <strong>Threads were not being scheduled.</strong>
+  </p>
+  <p>
+    Requests run on virtual threads, which share a few carrier threads and give one up only when they block. bcrypt
+    never blocks: it is hundreds of milliseconds of pure CPU. While hashes occupied every carrier, a request that had
+    already sent its SQL waited behind them, with its connection still checked out. A local experiment pinned to one
+    CPU showed it directly: a 5 ms request finished 1,854 ms late (p50) when hashes shared its carriers, and 0 ms
+    late when they ran on a platform thread. On my 16-core laptop it never appeared, which is why the kind baseline
+    missed it.
+  </p>
+  <p>
+    The fix routes hashing through a bounded pool of platform threads, which the OS preempts, so request carriers
+    keep getting CPU. When the queue is full, the request is refused at once with <code>503 SERVER_BUSY</code> and
+    <code>Retry-After</code>. The refusal depends only on the queue, not on whether the account exists, so it does
+    not reopen a user-enumeration timing side channel. <strong>Result: 50/50 games, 265 error lines → 0</strong>,
+    with the CPU still at 100%. Nothing else fails any more. The startup log also corrected one of my own
+    predictions: the JVM sees 2 processors on a 0.5 vCPU task, not 1.
+  </p>
+
+  <h3>2. A frozen database hung every move for the whole outage</h3>
+  <p>
+    I froze PostgreSQL for 30 seconds under 20 live games. My first attempt sent <code>SIGSTOP</code> from inside
+    the container, where the postmaster is PID 1, and Linux ignores that signal sent to a namespace’s init from
+    inside it. Only the backends froze, and the postmaster kept accepting connections. I noticed because the
+    sampler’s own <code>psql</code> kept answering. Sent from the node, it worked.
+  </p>
+  <p>
+    The drill found two problems. pgjdbc’s socket timeout defaults to forever, so a move waited 33.5 s, the whole
+    freeze; a silent network partition would have hung for TCP’s retransmission timeout, about fifteen minutes. And
+    every refused move reached players as <code>INTERNAL</code> and was logged at ERROR, 127 lines in 30 seconds.
+    After a 10 s socket timeout and a typed <code>SERVICE_UNAVAILABLE</code> answer on both REST and WebSocket:
+    <strong>longest wait 2.9 s, ERROR lines 127 → 1</strong>, and still 20/20 games consistent.
+  </p>
+  <p>
+    One trade-off I kept on purpose: the database is part of readiness, so an outage makes every pod unready and new
+    visitors see a 503. In exchange, a new version that cannot reach the database never receives traffic, and the
+    rollout stalls instead of replacing healthy pods.
+  </p>
+
+  <h3>3. A move vanished in the instant a pod drained</h3>
+  <p>
+    While recording the rolling-restart demo, a move made at the exact moment a pod drained was lost with its socket:
+    the server never received it, and the player’s move silently disappeared. The browser now keeps its last
+    unacknowledged move and re-sends it after reconnecting, with the same <code>clientMoveId</code>. The server’s
+    idempotency key makes the re-send safe even if the original did land. An end-to-end test pins it.
+  </p>
+
+  <h3>4. One unauthenticated request could end an AWS task</h3>
+  <p>
+    In an OWASP API Top 10 review: Spring parses a request body before the controller and its rate limit run, and
+    nothing limited the size. Four concurrent 100 MB bodies took the heap from 58 MB to 2,463 MB, against a 512 MB
+    heap on AWS. A filter first in the chain now refuses any body over 16 KB with <code>413</code>, in 2 ms, without
+    reading it.
+  </p>
+
+  <h2>Limits, stated</h2>
+  <ul>
+    <li>Fargate is measured to about 100 concurrent sockets. 1,000 sockets is measured only on kind, on one machine.</li>
+    <li>Single-AZ RDS, by cost decision; a Multi-AZ failover has not been drilled.</li>
+    <li>The AWS environment is applied for test sessions and then destroyed. It is not running permanently.</li>
+    <li>Sign-up capacity on that deployment is about one per second (an estimate from the measurements). bcrypt, not chess, sets that limit.</li>
+  </ul>
+
+  <div class="callout">
+    <p>
+      The repository has the full write-ups: 26 ADRs, load-test reports with their raw method, the failure drills,
+      the security review, diagrams and a design Q&amp;A.
+      <a href={site.links.chessRepo}>Read it on GitHub →</a>
+    </p>
+  </div>
+</Case>
+
+<style>
+  .small {
+    font-size: 0.8rem;
+  }
+
+  .note {
+    font-size: 0.9rem;
+  }
+
+  .decisions {
+    list-style: none;
+    padding: 0;
+    counter-reset: d;
+    margin: 1.5rem 0 0;
+  }
+
+  .decisions li {
+    counter-increment: d;
+    position: relative;
+    padding: 1.2rem 0 1.2rem 3rem;
+    border-top: 1px solid var(--rule);
+    margin: 0;
+  }
+
+  .decisions li:last-child {
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .decisions li::before {
+    content: counter(d, decimal-leading-zero);
+    position: absolute;
+    left: 0;
+    top: 1.35rem;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--accent-text);
+  }
+
+  .decisions h3 {
+    margin: 0 0 0.4rem;
+    font-size: 1.05rem;
+  }
+
+  .decisions p {
+    margin: 0;
+    color: var(--text-muted);
+  }
+
+  .table-wrap td:first-child {
+    font-weight: 550;
+    min-width: 11rem;
+  }
+
+  .table-wrap td:last-child {
+    white-space: nowrap;
+    font-size: 0.86rem;
+  }
+
+  .bleed-table {
+    width: min(52rem, 100vw - 2 * var(--gutter));
+    margin-left: 50%;
+    transform: translateX(-50%);
+  }
+</style>

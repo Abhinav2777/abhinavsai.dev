@@ -1,0 +1,46 @@
+---
+interface Props {
+  name: string;
+  label: string;
+  width: number;
+  height: number;
+}
+const { name, label, width, height } = Astro.props;
+---
+
+<figure class="demo">
+  <div class="frame">
+    <video
+      autoplay
+      muted
+      loop
+      playsinline
+      preload="metadata"
+      poster={`/media/${name}-poster.jpg`}
+      width={width}
+      height={height}
+      aria-label={label}
+    >
+      <source src={`/media/${name}.mp4`} type="video/mp4" />
+    </video>
+  </div>
+  <figcaption><slot /></figcaption>
+</figure>
+
+<style>
+  video {
+    width: 100%;
+    height: auto;
+  }
+</style>
+
+<script>
+  // Respect reduced motion: show the poster and let the viewer press play.
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    document.querySelectorAll<HTMLVideoElement>('figure.demo video').forEach((v) => {
+      v.removeAttribute('autoplay');
+      v.pause();
+      v.controls = true;
+    });
+  }
+</script>

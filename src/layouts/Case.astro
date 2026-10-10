@@ -1,0 +1,90 @@
+---
+import Base from './Base.astro';
+
+interface Props {
+  title: string;
+  description: string;
+  eyebrow: string;
+  lede: string;
+  meta: { label: string; value: string; href?: string }[];
+}
+
+const { title, description, eyebrow, lede, meta } = Astro.props;
+---
+
+<Base title={title} description={description} type="article">
+  <article>
+    <header class="case-head container">
+      <a class="back" href="/#work"><span aria-hidden="true">←</span> All work</a>
+      <p class="eyebrow">{eyebrow}</p>
+      <h1>{title}</h1>
+      <p class="lede">{lede}</p>
+      <dl class="meta">
+        {
+          meta.map((m) => (
+            <div>
+              <dt>{m.label}</dt>
+              <dd>{m.href ? <a href={m.href}>{m.value}</a> : m.value}</dd>
+            </div>
+          ))
+        }
+      </dl>
+    </header>
+    <div class="container prose case-body">
+      <slot />
+    </div>
+  </article>
+</Base>
+
+<style>
+  .case-head {
+    padding-top: clamp(2.5rem, 8vw, 4.5rem);
+  }
+
+  .back {
+    display: inline-block;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    margin-bottom: 2rem;
+  }
+
+  .back:hover {
+    color: var(--accent-text);
+  }
+
+  h1 {
+    font-size: clamp(2rem, 5.5vw, 3rem);
+    letter-spacing: -0.035em;
+    line-height: 1.1;
+    margin: 0.8rem 0 1.2rem;
+  }
+
+  .meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: 1rem 1.5rem;
+    margin: 2rem 0 0;
+    padding: 1.25rem 0;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .meta dt {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+
+  .meta dd {
+    margin: 0.25rem 0 0;
+    font-size: 0.93rem;
+    line-height: 1.5;
+  }
+
+  .case-body {
+    margin-top: 1rem;
+  }
+</style>
