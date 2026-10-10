@@ -124,10 +124,11 @@ const timeline = [
 
   <section class="container block">
     <div class="cta">
-      <p>Hiring for backend or distributed systems?</p>
+      <p>Working on hard backend or distributed-systems problems?</p>
+      <p class="sub muted">I’m always glad to talk shop.</p>
       <div class="actions">
-        <a class="btn btn--primary" href={`mailto:${site.email}`}>Email me</a>
-        <a class="btn" href={site.cv}>Download CV</a>
+        <a class="btn btn--primary" href={`mailto:${site.email}`}>Get in touch</a>
+        <a class="btn" href={site.cv}>CV</a>
       </div>
     </div>
   </section>
@@ -266,7 +267,14 @@ const timeline = [
     font-size: 1.25rem;
     font-weight: 600;
     letter-spacing: -0.02em;
-    margin-bottom: 1.2rem;
+    margin-bottom: 0.4rem;
+  }
+
+  .cta .sub {
+    font-size: 1rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    margin-bottom: 1.3rem;
   }
 
   .actions {
