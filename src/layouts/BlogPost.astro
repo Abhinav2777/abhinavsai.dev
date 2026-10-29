@@ -1,0 +1,86 @@
+---
+import Base from './Base.astro';
+
+interface Props {
+  title: string;
+  description: string;
+  pubDate: Date;
+  updatedDate?: Date;
+  categories: string[];
+  tags: string[];
+}
+
+const { title, description, pubDate, updatedDate, categories, tags } = Astro.props;
+
+const dateLabel = pubDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+const updatedLabel = updatedDate?.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+---
+
+<Base title={title} description={description} type="article">
+  <article>
+    <header class="post-head container">
+      <a class="back" href="/blog"><span aria-hidden="true">←</span> All writing</a>
+      <p class="eyebrow">{categories.join(' · ')}</p>
+      <h1>{title}</h1>
+      <p class="lede">{description}</p>
+      <div class="post-meta">
+        <time datetime={pubDate.toISOString()}>{dateLabel}</time>
+        {updatedLabel && <span class="muted">· updated {updatedLabel}</span>}
+      </div>
+      <ul class="chips">
+        {tags.map((t) => <li class="chip">{t}</li>)}
+      </ul>
+    </header>
+    <div class="container prose post-body">
+      <slot />
+    </div>
+  </article>
+</Base>
+
+<style>
+  .post-head {
+    padding-top: clamp(2.5rem, 8vw, 4.5rem);
+    max-width: var(--measure);
+  }
+
+  .back {
+    display: inline-block;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    margin-bottom: 2rem;
+  }
+
+  .back:hover {
+    color: var(--accent-text);
+  }
+
+  h1 {
+    font-size: clamp(2rem, 5.5vw, 2.8rem);
+    letter-spacing: -0.035em;
+    line-height: 1.1;
+    margin: 0.8rem 0 1.2rem;
+  }
+
+  .post-meta {
+    margin-top: 1.5rem;
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+  }
+
+  .chips {
+    margin: 1.25rem 0 0;
+    padding: 1.25rem 0 0;
+    border-top: 1px solid var(--rule);
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .post-body {
+    margin-top: 2.5rem;
+    max-width: var(--measure);
+  }
+</style>
